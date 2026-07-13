@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DICT Abra — Project Monitoring System</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'IBM Plex Sans', 'Segoe UI', sans-serif; background: #f8fafc; color: #1e293b; }
+    input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
+    @keyframes fadeIn { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:none; } }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useEffect, useCallback } = React;
+
+    const PROGRAMS = [
+      { id: "ilcdb", name: "ILCDB", full: "I Love My City Digital Barangay", color: "#1a56db", bg: "#ebf5ff", icon: "🏘️" },
+      { id: "dtc",   name: "DTC",   full: "Digital Transformation Center",   color: "#0e9f6e", bg: "#f3faf7", icon: "🏢" },
+      { id: "spark", name: "SPARK", full: "Skills & Productivity Advancement for Rural Kabataan", color: "#d97706", bg: "#fffbeb", icon: "💻" },
+      { id: "cyber", name: "Cybersecurity", full: "Cybersecurity Awareness & Response", color: "#e02424", bg: "#fdf2f2", icon: "🛡️" },
+      { id: "wifi",  name: "Free Wi-Fi", full: "Free Wi-Fi for All (WiFi para sa Lahat)", color: "#7e3af2", bg: "#f5f3ff", icon: "📡" },
+    ];
+
+    const QUARTERS = ["Q1", "Q2", "Q3", "Q4"];
+    const CURRENT_YEAR = 2025;
+
+    const DEFAULT_INDICATORS = {
+      ilcdb: [
+        { id: "ilcdb_1", name: "Barangays trained", unit: "barangays" },
+        { id: "ilcdb_2", name: "Officials reached", unit: "officials" },
+        { id: "ilcdb_3", name: "Training modules completed", unit: "modules" },
+        { id: "ilcdb_4", name: "Digital literacy assessments", unit: "assessments" },
+        { id: "ilcdb_5", name: "Helpdesks established", unit: "helpdesks" },
+      ],
+      dtc: [
+        { id: "dtc_1", name: "Walk-in clients served", unit: "clients" },
+        { id: "dtc_2", name: "Digital services rendered", unit: "services" },
+        { id: "dtc_3", name: "Training sessions conducted", unit: "sessions" },
+        { id: "dtc_4", name: "Partner agencies onboarded", unit: "agencies" },
+        { id: "dtc_5", name: "Equipment units deployed", unit: "units" },
+      ],
+      spark: [
+        { id: "spark_1", name: "Scholars enrolled", unit: "scholars" },
+        { id: "spark_2", name: "Courses/programs completed", unit: "courses" },
+        { id: "spark_3", name: "NC certifications obtained", unit: "certs" },
+        { id: "spark_4", name: "Graduates employed/deployed", unit: "graduates" },
+        { id: "spark_5", name: "Partner companies engaged", unit: "companies" },
+      ],
+      cyber: [
+        { id: "cyber_1", name: "Awareness seminars conducted", unit: "seminars" },
+        { id: "cyber_2", name: "Participants reached", unit: "persons" },
+        { id: "cyber_3", name: "LGUs covered", unit: "LGUs" },
+        { id: "cyber_4", name: "Cybersecurity incidents responded", unit: "incidents" },
+        { id: "cyber_5", name: "Trainors/speakers capacitated", unit: "persons" },
+      ],
+      wifi: [
+        { id: "wifi_1", name: "Wi-Fi sites deployed", unit: "sites" },
+        { id: "wifi_2", name: "Active connections maintained", unit: "sites" },
+        { id: "wifi_3", name: "Barangays covered", unit: "barangays" },
+        { id: "wifi_4", name: "Average uptime rate", unit: "%" },
+        { id: "wifi_5", name: "Trouble tickets resolved", unit: "tickets" },
+      ],
+    };
+
+    const DEFAULT_DATA = () => {
+      const d = {};
+      PROGRAMS.forEach(p => {
+        DEFAULT_INDICATORS[p.id].forEach(ind => {
+          QUARTERS.forEach(q => {
+            d[`${ind.id}_${q}_target`] = "";
+            d[`${ind.id}_${q}_actual`] = "";
+          });
+        });
+      });
+      return d;
+    };
+
+    const STORAGE_KEY = "dict_abra_v3";
+
+    function load() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) return JSON.parse(raw);
+      } catch {}
+      return { data: DEFAULT_DATA(), indicators: DEFAULT_INDICATORS, notes: {} };
+    }
+
+    function save(state) {
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch {}
+    }
+
+    function pct(actual, target) {
+      const a = parseFloat(actual), t = parseFloat(target);
+      if (!t || isNaN(a) || isNaN(t)) return null;
+      return Math.round((a / t) * 100);
+    }
+
+    function statusChip(p) {
+      if (p === null) return React.createElement('span', { style: chip("gray") }, "No data");
+      if (p >= 90)   return React.createElement('span', { style: chip("green") }, "Met");
+      if (p >= 65)   return React.createElement('span', { style: chip("amber") }, "On track");
+      return React.createElement('span', { style: chip("red") }, "At risk");
+    }
+
+    function chip(c) {
+      const map = { green: { bg: "#def7ec", color: "#03543f" }, amber: { bg: "#fdf6b2", color: "#723b13" }, red: { bg: "#fde8e8", color: "#9b1c1c" }, gray: { bg: "#f3f4f6", color: "#374151" } };
+      const { bg, color } = map[c];
+      return { background: bg, color, fontSize: 11, padding: "2px 8px", borderRadius: 10, fontWeight: 600, display: "inline-block", whiteSpace: "nowrap" };
+    }
+
+    function ProgressBar({ value, color }) {
+      const clamped = Math.min(100, Math.max(0, value || 0));
+      return (
+        <div style={{ height: 8, background: "#f0f0f0", borderRadius: 4, overflow: "hidden", marginTop: 4 }}>
+          <div style={{ width: `${clamped}%`, height: "100%", background: color, borderRadius: 4, transition: "width .4s" }} />
+        </div>
+      );
+    }
+
+    function th(align = "left", width) {
+      return { padding: "9px 10px", textAlign: align, fontSize: 11, fontWeight: 600, color: "#64748b", borderBottom: "1px solid #e2e8f0", whiteSpace: "nowrap", width: width || "auto" };
+    }
+
+    function App() {
+      const [store, setStore] = useState(load);
+      const [view, setView] = useState("dashboard");
+      const [activeProgram, setActiveProgram] = useState("ilcdb");
+      const [activeQuarter, setActiveQuarter] = useState("Q1");
+      const [toast, setToast] = useState(null);
+      const [modalOpen, setModalOpen] = useState(false);
+      const [newIndName, setNewIndName] = useState("");
+      const [newIndUnit, setNewIndUnit] = useState("");
+      const [deleteConfirm, setDeleteConfirm] = useState(null);
+      const [notesOpen, setNotesOpen] = useState(false);
+      const [noteText, setNoteText] = useState("");
+
+      useEffect(() => { save(store); }, [store]);
+
+      const showToast = (msg, type = "success") => {
+        setToast({ msg, type });
+        setTimeout(() => setToast(null), 2800);
+      };
+
+      const updateCell = useCallback((key, val) => {
+        setStore(prev => ({ ...prev, data: { ...prev.data, [key]: val } }));
+      }, []);
+
+      const addIndicator = () => {
+        if (!newIndName.trim()) return;
+        const id = `${activeProgram}_custom_${Date.now()}`;
+        const newInd = { id, name: newIndName.trim(), unit: newIndUnit.trim() || "units" };
+        const newData = { ...store.data };
+        QUARTERS.forEach(q => { newData[`${id}_${q}_target`] = ""; newData[`${id}_${q}_actual`] = ""; });
+        setStore(prev => ({ ...prev, indicators: { ...prev.indicators, [activeProgram]: [...(prev.indicators[activeProgram] || []), newInd] }, data: newData }));
+        setNewIndName(""); setNewIndUnit(""); setModalOpen(false);
+        showToast("Indicator added.");
+      };
+
+      const deleteIndicator = (progId, indId) => {
+        setStore(prev => {
+          const inds = (prev.indicators[progId] || []).filter(i => i.id !== indId);
+          const data = { ...prev.data };
+          QUARTERS.forEach(q => { delete data[`${indId}_${q}_target`]; delete data[`${indId}_${q}_actual`]; });
+          return { ...prev, indicators: { ...prev.indicators, [progId]: inds }, data };
+        });
+        setDeleteConfirm(null);
+        showToast("Indicator removed.", "info");
+      };
+
+      const clearAll = () => {
+        if (!window.confirm("Clear ALL data? This cannot be undone.")) return;
+        setStore({ data: DEFAULT_DATA(), indicators: DEFAULT_INDICATORS, notes: {} });
+        showToast("All data cleared.", "info");
+      };
+
+      const exportCSV = () => {
+        const rows = [["Program", "Indicator", "Unit", "Quarter", "Target", "Accomplished", "% Rate", "Status"]];
+        PROGRAMS.forEach(p => {
+          (store.indicators[p.id] || []).forEach(ind => {
+            QUARTERS.forEach(q => {
+              const t = store.data[`${ind.id}_${q}_target`];
+              const a = store.data[`${ind.id}_${q}_actual`];
+              const p2 = pct(a, t);
+              rows.push([p.name, ind.name, ind.unit, q, t || "", a || "", p2 !== null ? `${p2}%` : "", p2 !== null ? (p2 >= 90 ? "Met" : p2 >= 65 ? "On track" : "At risk") : "No data"]);
+            });
+          });
+        });
+        const csv = rows.map(r => r.map(v => `"${v}"`).join(",")).join("\n");
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+        a.download = `dict_abra_monitoring_${CURRENT_YEAR}.csv`;
+        a.click();
+        showToast("CSV exported!");
+      };
+
+      const getOverall = (progId) => {
+        const inds = store.indicators[progId] || [];
+        const pairs = [];
+        inds.forEach(ind => QUARTERS.forEach(q => {
+          const p2 = pct(store.data[`${ind.id}_${q}_actual`], store.data[`${ind.id}_${q}_target`]);
+          if (p2 !== null) pairs.push(p2);
+        }));
+        if (!pairs.length) return null;
+        return Math.round(pairs.reduce((a, b) => a + b, 0) / pairs.length);
+      };
+
+      const getQuarterTotal = (progId, q) => {
+        const inds = store.indicators[progId] || [];
+        const pairs = [];
+        inds.forEach(ind => {
+          const p2 = pct(store.data[`${ind.id}_${q}_actual`], store.data[`${ind.id}_${q}_target`]);
+          if (p2 !== null) pairs.push(p2);
+        });
+        if (!pairs.length) return null;
+        return Math.round(pairs.reduce((a, b) => a + b, 0) / pairs.length);
+      };
+
+      const prog = PROGRAMS.find(p => p.id === activeProgram);
+      const inds = store.indicators[activeProgram] || [];
+
+      const overallAll = (() => {
+        const vals = PROGRAMS.map(p => getOverall(p.id)).filter(v => v !== null);
+        if (!vals.length) return null;
+        return Math.round(vals.reduce((a, b) => a + b, 0) / vals.length);
+      })();
+
+      const noteKey = `${activeProgram}_${activeQuarter}`;
+
+      return (
+        <div style={{ fontFamily: "'IBM Plex Sans', 'Segoe UI', sans-serif", minHeight: "100vh", background: "#f8fafc", color: "#1e293b" }}>
+          <div style={{ display: "flex", minHeight: "100vh" }}>
+            {/* SIDEBAR */}
+            <nav style={{ width: 220, background: "#0f172a", display: "flex", flexDirection: "column", padding: "0 0 16px", flexShrink: 0, position: "sticky", top: 0, height: "100vh", overflowY: "auto" }}>
+              <div style={{ padding: "20px 16px 12px", borderBottom: "1px solid #1e293b" }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "#7c9cbf", letterSpacing: 1, marginBottom: 4 }}>DICT ABRA</div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: "#e2e8f0", lineHeight: 1.3 }}>Project Monitoring System</div>
+                <div style={{ fontSize: 10, color: "#64748b", marginTop: 3 }}>FY {CURRENT_YEAR}</div>
+              </div>
+              <div style={{ padding: "12px 8px 4px" }}>
+                <div style={{ fontSize: 10, color: "#475569", fontWeight: 600, letterSpacing: .8, paddingLeft: 8, marginBottom: 6 }}>NAVIGATION</div>
+                {[{ id: "dashboard", label: "Dashboard", icon: "📊" }, { id: "encode", label: "Encode Data", icon: "✏️" }, { id: "report", label: "Full Report", icon: "📋" }].map(item => (
+                  <button key={item.id} onClick={() => setView(item.id)}
+                    style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "8px 10px", borderRadius: 8, border: "none", cursor: "pointer", fontSize: 13,
+                      background: view === item.id ? "#1e40af" : "transparent", color: view === item.id ? "#fff" : "#94a3b8", fontWeight: view === item.id ? 600 : 400, marginBottom: 2 }}>
+                    <span>{item.icon}</span>{item.label}
+                  </button>
+                ))}
+              </div>
+              <div style={{ padding: "12px 8px 4px", marginTop: 8 }}>
+                <div style={{ fontSize: 10, color: "#475569", fontWeight: 600, letterSpacing: .8, paddingLeft: 8, marginBottom: 6 }}>PROGRAMS</div>
+                {PROGRAMS.map(p => {
+                  const ov = getOverall(p.id);
+                  return (
+                    <button key={p.id} onClick={() => { setActiveProgram(p.id); setView("encode"); }}
+                      style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", padding: "7px 10px", borderRadius: 8, border: "none", cursor: "pointer", fontSize: 12,
+                        background: activeProgram === p.id && view === "encode" ? "#172554" : "transparent",
+                        color: activeProgram === p.id && view === "encode" ? "#93c5fd" : "#64748b", marginBottom: 1 }}>
+                      <span style={{ display: "flex", alignItems: "center", gap: 6 }}><span>{p.icon}</span>{p.name}</span>
+                      {ov !== null && <span style={{ fontSize: 10, fontWeight: 700, color: ov >= 90 ? "#34d399" : ov >= 65 ? "#fbbf24" : "#f87171" }}>{ov}%</span>}
+                    </button>
+                  );
+                })}
+              </div>
+              <div style={{ marginTop: "auto", padding: "0 8px" }}>
+                <button onClick={exportCSV} style={{ display: "flex", alignItems: "center", gap: 6, width: "100%", padding: "8px 10px", borderRadius: 8, border: "1px solid #1e3a5f", background: "transparent", color: "#7c9cbf", fontSize: 12, cursor: "pointer", marginBottom: 4 }}>📥 Export CSV</button>
+                <button onClick={clearAll} style={{ display: "flex", alignItems: "center", gap: 6, width: "100%", padding: "8px 10px", borderRadius: 8, border: "1px solid #3f1818", background: "transparent", color: "#ef4444", fontSize: 12, cursor: "pointer" }}>🗑 Clear All Data</button>
+              </div>
+            </nav>
+
+            {/* MAIN */}
+            <main style={{ flex: 1, padding: "28px 32px", overflowX: "hidden" }}>
+
+              {/* DASHBOARD */}
+              {view === "dashboard" && (
+                <div>
+                  <div style={{ marginBottom: 24 }}>
+                    <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>Dashboard</h1>
+                    <p style={{ fontSize: 13, color: "#64748b", margin: "4px 0 0" }}>DICT Abra Province — Consolidated Target vs. Accomplishment · FY {CURRENT_YEAR}</p>
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14, marginBottom: 28 }}>
+                    {[
+                      { label: "Overall Rate", val: overallAll !== null ? `${overallAll}%` : "—", sub: "All programs combined", accent: overallAll !== null ? (overallAll >= 75 ? "#0e9f6e" : "#d97706") : "#64748b" },
+                      { label: "Programs On Track", val: `${PROGRAMS.filter(p => { const v = getOverall(p.id); return v !== null && v >= 65; }).length} / ${PROGRAMS.length}`, sub: "≥65% completion", accent: "#1a56db" },
+                      { label: "Programs At Risk", val: `${PROGRAMS.filter(p => { const v = getOverall(p.id); return v !== null && v < 65; }).length}`, sub: "Below 65%", accent: "#e02424" },
+                      { label: "Total Indicators", val: `${PROGRAMS.reduce((s, p) => s + (store.indicators[p.id] || []).length, 0)}`, sub: "Across 5 programs", accent: "#7e3af2" },
+                    ].map((c, i) => (
+                      <div key={i} style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 12, padding: "14px 16px" }}>
+                        <div style={{ fontSize: 12, color: "#64748b", marginBottom: 4 }}>{c.label}</div>
+                        <div style={{ fontSize: 26, fontWeight: 700, color: c.accent }}>{c.val}</div>
+                        <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 2 }}>{c.sub}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 16 }}>
+                    {PROGRAMS.map(p => {
+                      const ov = getOverall(p.id);
+                      return (
+                        <div key={p.id} style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 14, padding: "16px 18px" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
+                            <div>
+                              <div style={{ fontSize: 15, fontWeight: 700, color: p.color }}>{p.icon} {p.name}</div>
+                              <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 2 }}>{p.full}</div>
+                            </div>
+                            <div style={{ fontSize: 22, fontWeight: 700, color: p.color }}>{ov !== null ? `${ov}%` : "—"}</div>
+                          </div>
+                          <ProgressBar value={ov} color={p.color} />
+                          <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6 }}>
+                            {QUARTERS.map(q => {
+                              const qv = getQuarterTotal(p.id, q);
+                              return (
+                                <div key={q} style={{ background: "#f8fafc", borderRadius: 8, padding: "6px 8px", textAlign: "center" }}>
+                                  <div style={{ fontSize: 10, color: "#94a3b8" }}>{q}</div>
+                                  <div style={{ fontSize: 14, fontWeight: 700, color: qv !== null ? (qv >= 90 ? "#0e9f6e" : qv >= 65 ? "#d97706" : "#e02424") : "#cbd5e1" }}>{qv !== null ? `${qv}%` : "—"}</div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                          <button onClick={() => { setActiveProgram(p.id); setView("encode"); }}
+                            style={{ marginTop: 10, fontSize: 12, padding: "5px 12px", border: `1px solid ${p.color}`, borderRadius: 8, background: p.bg, color: p.color, cursor: "pointer", fontWeight: 500 }}>
+                            ✏️ Encode / Edit
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* ENCODE */}
+              {view === "encode" && (
+                <div>
+                  <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 20 }}>
+                    <div>
+                      <h1 style={{ fontSize: 20, fontWeight: 700, margin: 0, color: prog.color }}>{prog.icon} {prog.name}</h1>
+                      <p style={{ fontSize: 12, color: "#64748b", margin: "3px 0 0" }}>{prog.full}</p>
+                    </div>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <button onClick={() => { setNoteText(store.notes?.[noteKey] || ""); setNotesOpen(true); }}
+                        style={{ fontSize: 12, padding: "6px 12px", border: "1px solid #e2e8f0", borderRadius: 8, background: "#fff", color: "#475569", cursor: "pointer" }}>📝 Notes</button>
+                      <button onClick={() => setModalOpen(true)}
+                        style={{ fontSize: 12, padding: "6px 14px", border: "none", borderRadius: 8, background: prog.color, color: "#fff", cursor: "pointer", fontWeight: 600 }}>+ Add Indicator</button>
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", gap: 6, marginBottom: 18 }}>
+                    {QUARTERS.map(q => (
+                      <button key={q} onClick={() => setActiveQuarter(q)}
+                        style={{ padding: "7px 18px", borderRadius: 8, border: "1px solid", fontSize: 13, cursor: "pointer", fontWeight: 500,
+                          background: activeQuarter === q ? prog.color : "#fff", borderColor: activeQuarter === q ? prog.color : "#e2e8f0", color: activeQuarter === q ? "#fff" : "#475569" }}>
+                        {q}
+                      </button>
+                    ))}
+                  </div>
+                  {(() => {
+                    const qv = getQuarterTotal(activeProgram, activeQuarter);
+                    return (
+                      <div style={{ background: prog.bg, border: `1px solid ${prog.color}22`, borderRadius: 10, padding: "10px 16px", marginBottom: 16, display: "flex", alignItems: "center", gap: 16 }}>
+                        <div>
+                          <div style={{ fontSize: 11, color: "#64748b" }}>{activeQuarter} Overall Accomplishment Rate</div>
+                          <div style={{ fontSize: 24, fontWeight: 700, color: prog.color }}>{qv !== null ? `${qv}%` : "No data yet"}</div>
+                        </div>
+                        <div style={{ flex: 1 }}>{qv !== null && <ProgressBar value={qv} color={prog.color} />}</div>
+                        <div style={{ marginLeft: "auto" }}>{statusChip(qv)}</div>
+                      </div>
+                    );
+                  })()}
+                  <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 14, overflow: "hidden" }}>
+                    <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                      <thead>
+                        <tr style={{ background: "#f8fafc" }}>
+                          <th style={th("left", "38%")}>Indicator</th>
+                          <th style={th("center", "13%")}>Unit</th>
+                          <th style={th("center", "13%")}>Target</th>
+                          <th style={th("center", "13%")}>Accomplished</th>
+                          <th style={th("center", "11%")}>Rate</th>
+                          <th style={th("center", "9%")}>Status</th>
+                          <th style={th("center", "3%")}></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {inds.length === 0 && (
+                          <tr><td colSpan={7} style={{ textAlign: "center", padding: 32, color: "#94a3b8", fontSize: 13 }}>No indicators. Click "+ Add Indicator" to begin.</td></tr>
+                        )}
+                        {inds.map((ind, idx) => {
+                          const tk = `${ind.id}_${activeQuarter}_target`;
+                          const ak = `${ind.id}_${activeQuarter}_actual`;
+                          const t = store.data[tk] || "";
+                          const a = store.data[ak] || "";
+                          const p2 = pct(a, t);
+                          return (
+                            <tr key={ind.id} style={{ borderTop: "1px solid #f1f5f9", background: idx % 2 === 0 ? "#fff" : "#fafafa" }}>
+                              <td style={{ padding: "10px 14px", fontSize: 13, fontWeight: 500, color: "#1e293b" }}>{ind.name}</td>
+                              <td style={{ padding: "10px 8px", textAlign: "center" }}>
+                                <span style={{ fontSize: 11, background: "#f1f5f9", padding: "2px 7px", borderRadius: 8, color: "#475569" }}>{ind.unit}</span>
+                              </td>
+                              <td style={{ padding: "8px 8px", textAlign: "center" }}>
+                                <input type="number" value={t} min={0} onChange={e => updateCell(tk, e.target.value)} placeholder="0"
+                                  style={{ width: 72, textAlign: "center", padding: "5px 6px", border: "1px solid #e2e8f0", borderRadius: 7, fontSize: 13, outline: "none", background: "#fff" }} />
+                              </td>
+                              <td style={{ padding: "8px 8px", textAlign: "center" }}>
+                                <input type="number" value={a} min={0} onChange={e => updateCell(ak, e.target.value)} placeholder="0"
+                                  style={{ width: 72, textAlign: "center", padding: "5px 6px", border: `1px solid ${a ? prog.color + "66" : "#e2e8f0"}`, borderRadius: 7, fontSize: 13, outline: "none", background: a ? prog.bg : "#fff" }} />
+                              </td>
+                              <td style={{ padding: "10px 8px", textAlign: "center", fontSize: 14, fontWeight: 700, color: p2 !== null ? (p2 >= 90 ? "#0e9f6e" : p2 >= 65 ? "#d97706" : "#e02424") : "#cbd5e1" }}>{p2 !== null ? `${p2}%` : "—"}</td>
+                              <td style={{ padding: "10px 8px", textAlign: "center" }}>{statusChip(p2)}</td>
+                              <td style={{ padding: "10px 8px", textAlign: "center" }}>
+                                <button onClick={() => setDeleteConfirm({ progId: activeProgram, indId: ind.id, name: ind.name })}
+                                  style={{ border: "none", background: "none", color: "#ef4444", cursor: "pointer", fontSize: 14, opacity: .5, padding: 2 }}>✕</button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                  {inds.length > 0 && (
+                    <div style={{ marginTop: 12, textAlign: "right" }}>
+                      <button onClick={() => showToast("Changes auto-saved!")}
+                        style={{ padding: "8px 20px", background: prog.color, color: "#fff", border: "none", borderRadius: 8, fontWeight: 600, cursor: "pointer", fontSize: 13 }}>✅ Save / Confirm</button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* REPORT */}
+              {view === "report" && (
+                <div>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+                    <div>
+                      <h1 style={{ fontSize: 20, fontWeight: 700, margin: 0 }}>📋 Full Consolidated Report</h1>
+                      <p style={{ fontSize: 12, color: "#64748b", margin: "3px 0 0" }}>All programs · All quarters · FY {CURRENT_YEAR}</p>
+                    </div>
+                    <button onClick={exportCSV} style={{ padding: "7px 16px", background: "#1e40af", color: "#fff", border: "none", borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: "pointer" }}>📥 Export CSV</button>
+                  </div>
+                  {PROGRAMS.map(p => {
+                    const pinds = store.indicators[p.id] || [];
+                    const ov = getOverall(p.id);
+                    return (
+                      <div key={p.id} style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 14, marginBottom: 20, overflow: "hidden" }}>
+                        <div style={{ background: p.bg, padding: "12px 18px", borderBottom: "1px solid #e2e8f0", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                          <div>
+                            <span style={{ fontSize: 15, fontWeight: 700, color: p.color }}>{p.icon} {p.name}</span>
+                            <span style={{ fontSize: 12, color: "#64748b", marginLeft: 8 }}>{p.full}</span>
+                          </div>
+                          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                            <span style={{ fontSize: 18, fontWeight: 700, color: ov !== null ? (ov >= 90 ? "#0e9f6e" : ov >= 65 ? "#d97706" : "#e02424") : "#94a3b8" }}>{ov !== null ? `${ov}%` : "—"}</span>
+                            {statusChip(ov)}
+                          </div>
+                        </div>
+                        <div style={{ overflowX: "auto" }}>
+                          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                            <thead>
+                              <tr style={{ background: "#f8fafc" }}>
+                                <th style={th("left", "26%")}>Indicator</th>
+                                <th style={th("center", "7%")}>Unit</th>
+                                {QUARTERS.map(q => [
+                                  <th key={q+"t"} style={{ ...th("center","6%"), borderLeft:"2px solid #e2e8f0" }}>Target</th>,
+                                  <th key={q+"a"} style={th("center","6%")}>Done</th>,
+                                  <th key={q+"p"} style={th("center","5%")}>%</th>,
+                                ])}
+                                <th style={{ ...th("center","7%"), borderLeft:"2px solid #e2e8f0" }}>Avg %</th>
+                                <th style={th("center","7%")}>Status</th>
+                              </tr>
+                              <tr style={{ background: "#f1f5f9" }}>
+                                <th colSpan={2}></th>
+                                {QUARTERS.map(q => <th key={q} colSpan={3} style={{ fontSize:11, fontWeight:700, color:p.color, textAlign:"center", padding:"3px 0", borderLeft:"2px solid #e2e8f0" }}>{q}</th>)}
+                                <th colSpan={2}></th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {pinds.length === 0 && <tr><td colSpan={2+QUARTERS.length*3+2} style={{ textAlign:"center", padding:20, color:"#94a3b8" }}>No indicators encoded.</td></tr>}
+                              {pinds.map((ind, idx) => {
+                                const qpcts = QUARTERS.map(q => pct(store.data[`${ind.id}_${q}_actual`], store.data[`${ind.id}_${q}_target`]));
+                                const nonNull = qpcts.filter(v => v !== null);
+                                const avg = nonNull.length ? Math.round(nonNull.reduce((a,b)=>a+b,0)/nonNull.length) : null;
+                                return (
+                                  <tr key={ind.id} style={{ borderTop:"1px solid #f1f5f9", background: idx%2===0?"#fff":"#fafafa" }}>
+                                    <td style={{ padding:"8px 14px", fontWeight:500 }}>{ind.name}</td>
+                                    <td style={{ padding:"8px 6px", textAlign:"center", color:"#64748b" }}>{ind.unit}</td>
+                                    {QUARTERS.map((q, qi) => {
+                                      const t = store.data[`${ind.id}_${q}_target`];
+                                      const a = store.data[`${ind.id}_${q}_actual`];
+                                      const pp = qpcts[qi];
+                                      return [
+                                        <td key={q+"t"} style={{ padding:"8px 6px", textAlign:"center", borderLeft:"2px solid #e2e8f0", color:"#475569" }}>{t||"—"}</td>,
+                                        <td key={q+"a"} style={{ padding:"8px 6px", textAlign:"center", color:a?p.color:"#94a3b8", fontWeight:a?600:400 }}>{a||"—"}</td>,
+                                        <td key={q+"p"} style={{ padding:"8px 6px", textAlign:"center", fontWeight:700, color:pp!==null?(pp>=90?"#0e9f6e":pp>=65?"#d97706":"#e02424"):"#cbd5e1" }}>{pp!==null?`${pp}%`:"—"}</td>,
+                                      ];
+                                    })}
+                                    <td style={{ padding:"8px 8px", textAlign:"center", fontWeight:700, borderLeft:"2px solid #e2e8f0", color:avg!==null?(avg>=90?"#0e9f6e":avg>=65?"#d97706":"#e02424"):"#cbd5e1" }}>{avg!==null?`${avg}%`:"—"}</td>
+                                    <td style={{ padding:"8px 8px", textAlign:"center" }}>{statusChip(avg)}</td>
+                                  </tr>
+                                );
+                              })}
+                              {pinds.length > 0 && (
+                                <tr style={{ background:p.bg, borderTop:"2px solid #e2e8f0", fontWeight:700 }}>
+                                  <td colSpan={2} style={{ padding:"8px 14px", color:p.color }}>Quarter Average</td>
+                                  {QUARTERS.map((q) => {
+                                    const qv = getQuarterTotal(p.id, q);
+                                    return [
+                                      <td key={q+"t"} style={{ borderLeft:"2px solid #e2e8f0" }}></td>,
+                                      <td key={q+"a"}></td>,
+                                      <td key={q+"p"} style={{ padding:"8px 6px", textAlign:"center", color:qv!==null?(qv>=90?"#0e9f6e":qv>=65?"#d97706":"#e02424"):"#cbd5e1" }}>{qv!==null?`${qv}%`:"—"}</td>,
+                                    ];
+                                  })}
+                                  <td style={{ padding:"8px 8px", textAlign:"center", color:ov!==null?(ov>=90?"#0e9f6e":ov>=65?"#d97706":"#e02424"):"#cbd5e1", borderLeft:"2px solid #e2e8f0" }}>{ov!==null?`${ov}%`:"—"}</td>
+                                  <td style={{ padding:"8px 8px", textAlign:"center" }}>{statusChip(ov)}</td>
+                                </tr>
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </main>
+          </div>
+
+          {/* MODALS */}
+          {modalOpen && (
+            <div onClick={() => setModalOpen(false)} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,.45)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:1000 }}>
+              <div onClick={e => e.stopPropagation()} style={{ background:"#fff", borderRadius:16, padding:28, width:400 }}>
+                <h2 style={{ fontSize:17, fontWeight:700, margin:"0 0 4px", color:prog.color }}>{prog.icon} Add Indicator — {prog.name}</h2>
+                <p style={{ fontSize:12, color:"#64748b", margin:"0 0 18px" }}>Add a new performance indicator for this program.</p>
+                <label style={{ fontSize:12, fontWeight:600, color:"#374151", display:"block", marginBottom:4 }}>Indicator Name *</label>
+                <input value={newIndName} onChange={e => setNewIndName(e.target.value)} placeholder="e.g., Beneficiaries trained"
+                  style={{ width:"100%", padding:"9px 12px", border:"1px solid #d1d5db", borderRadius:8, fontSize:13, outline:"none", marginBottom:14, boxSizing:"border-box" }} />
+                <label style={{ fontSize:12, fontWeight:600, color:"#374151", display:"block", marginBottom:4 }}>Unit of Measure</label>
+                <input value={newIndUnit} onChange={e => setNewIndUnit(e.target.value)} placeholder="e.g., persons, sessions, sites"
+                  style={{ width:"100%", padding:"9px 12px", border:"1px solid #d1d5db", borderRadius:8, fontSize:13, outline:"none", marginBottom:20, boxSizing:"border-box" }} />
+                <div style={{ display:"flex", gap:8, justifyContent:"flex-end" }}>
+                  <button onClick={() => setModalOpen(false)} style={{ padding:"8px 18px", border:"1px solid #e2e8f0", borderRadius:8, background:"#fff", fontSize:13, cursor:"pointer" }}>Cancel</button>
+                  <button onClick={addIndicator} style={{ padding:"8px 20px", background:prog.color, color:"#fff", border:"none", borderRadius:8, fontSize:13, fontWeight:600, cursor:"pointer" }}>Add Indicator</button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {deleteConfirm && (
+            <div onClick={() => setDeleteConfirm(null)} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,.45)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:1000 }}>
+              <div onClick={e => e.stopPropagation()} style={{ background:"#fff", borderRadius:14, padding:24, width:360 }}>
+                <div style={{ fontSize:32, textAlign:"center", marginBottom:8 }}>⚠️</div>
+                <h2 style={{ fontSize:16, fontWeight:700, textAlign:"center", margin:"0 0 8px" }}>Remove Indicator?</h2>
+                <p style={{ fontSize:13, color:"#475569", textAlign:"center", margin:"0 0 20px" }}>"{deleteConfirm.name}" and all its data will be permanently deleted.</p>
+                <div style={{ display:"flex", gap:8, justifyContent:"center" }}>
+                  <button onClick={() => setDeleteConfirm(null)} style={{ padding:"8px 18px", border:"1px solid #e2e8f0", borderRadius:8, background:"#fff", fontSize:13, cursor:"pointer" }}>Cancel</button>
+                  <button onClick={() => deleteIndicator(deleteConfirm.progId, deleteConfirm.indId)} style={{ padding:"8px 18px", background:"#ef4444", color:"#fff", border:"none", borderRadius:8, fontSize:13, fontWeight:600, cursor:"pointer" }}>Delete</button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {notesOpen && (
+            <div onClick={() => setNotesOpen(false)} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,.45)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:1000 }}>
+              <div onClick={e => e.stopPropagation()} style={{ background:"#fff", borderRadius:16, padding:28, width:440 }}>
+                <h2 style={{ fontSize:16, fontWeight:700, margin:"0 0 4px" }}>📝 Notes / Remarks</h2>
+                <p style={{ fontSize:12, color:"#64748b", margin:"0 0 14px" }}>{prog.name} · {activeQuarter} · FY {CURRENT_YEAR}</p>
+                <textarea value={noteText} onChange={e => setNoteText(e.target.value)} rows={5}
+                  placeholder="Enter remarks, explanations, or follow-up actions here..."
+                  style={{ width:"100%", padding:"10px 12px", border:"1px solid #d1d5db", borderRadius:8, fontSize:13, resize:"vertical", outline:"none", boxSizing:"border-box", marginBottom:14 }} />
+                <div style={{ display:"flex", gap:8, justifyContent:"flex-end" }}>
+                  <button onClick={() => setNotesOpen(false)} style={{ padding:"8px 18px", border:"1px solid #e2e8f0", borderRadius:8, background:"#fff", fontSize:13, cursor:"pointer" }}>Cancel</button>
+                  <button onClick={() => { setStore(prev => ({ ...prev, notes: { ...prev.notes, [noteKey]: noteText } })); setNotesOpen(false); showToast("Remarks saved."); }}
+                    style={{ padding:"8px 20px", background:"#1e40af", color:"#fff", border:"none", borderRadius:8, fontSize:13, fontWeight:600, cursor:"pointer" }}>Save Remarks</button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {toast && (
+            <div style={{ position:"fixed", bottom:24, right:24, background: toast.type==="success"?"#0e9f6e":toast.type==="info"?"#1a56db":"#e02424",
+              color:"#fff", padding:"10px 20px", borderRadius:10, fontSize:13, fontWeight:600, zIndex:2000, animation:"fadeIn .2s" }}>
+              {toast.msg}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(React.createElement(App));
+  </script>
+</body>
+</html>
