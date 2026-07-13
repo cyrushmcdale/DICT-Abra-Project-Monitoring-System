@@ -671,6 +671,16 @@ export default function App() {
     return Math.round((accomplished / evs.length) * 100);
   };
 
+  // Wait for the initial Supabase session check before deciding which screen to show,
+  // so a logged-in user doesn't flash the login screen on refresh.
+  if (!authChecked) {
+    return (
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#0f172a", color: "#94a3b8", fontFamily: "'IBM Plex Sans', sans-serif", fontSize: 13 }}>
+        Loading…
+      </div>
+    );
+  }
+
   // Login Screen UI Render Guard
   if (!isAuthenticated) {
     return (
@@ -691,8 +701,8 @@ export default function App() {
             )}
 
             <div style={{ marginBottom: 16 }}>
-              <label style={{ display: "block", fontSize: 12, color: "#cbd5e1", fontWeight: 600, marginBottom: 6 }}>Username</label>
-              <input type="text" value={username} onChange={e => setUsername(e.target.value)} required placeholder="Enter username"
+              <label style={{ display: "block", fontSize: 12, color: "#cbd5e1", fontWeight: 600, marginBottom: 6 }}>Email</label>
+              <input type="email" value={username} onChange={e => setUsername(e.target.value)} required placeholder="you@office.gov.ph"
                 style={{ width: "100%", padding: "11px 14px", background: "#0f172a", border: "1px solid #475569", borderRadius: 8, color: "#f8fafc", fontSize: 14, outline: "none", boxSizing: "border-box" }} />
             </div>
 
@@ -702,17 +712,33 @@ export default function App() {
                 style={{ width: "100%", padding: "11px 14px", background: "#0f172a", border: "1px solid #475569", borderRadius: 8, color: "#f8fafc", fontSize: 14, outline: "none", boxSizing: "border-box" }} />
             </div>
 
-            <button type="submit"
-              style={{ width: "100%", padding: "12px", background: "#2563eb", color: "#fff", border: "none", borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: "pointer", transition: "background 0.2s" }}>
-              Sign In
+            <button type="submit" disabled={loginLoading}
+              style={{ width: "100%", padding: "12px", background: "#2563eb", color: "#fff", border: "none", borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: loginLoading ? "not-allowed" : "pointer", opacity: loginLoading ? 0.7 : 1, transition: "background 0.2s" }}>
+              {loginLoading ? "Signing in…" : "Sign In"}
             </button>
           </form>
 
           <div style={{ textAlign: "center", marginTop: 24, fontSize: 11, color: "#64748b", borderTop: "1px solid #334155", paddingTop: 16 }}>
-            Default Credentials:<br/>
-            Username: <code style={{ color: "#94a3b8" }}>admin</code> | Password: <code style={{ color: "#94a3b8" }}>dictabra123</code>
+            Use your DICT Abra office account credentials.
           </div>
         </div>
+      </div>
+    );
+  }
+
+  // Data Loading Guard — the Supabase fetch effect runs after isAuthenticated flips true
+  if (!store) {
+    return (
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#f8fafc", fontFamily: "'IBM Plex Sans', 'Segoe UI', sans-serif", color: "#64748b", fontSize: 14 }}>
+        {dataError ? (
+          <div style={{ textAlign: "center" }}>
+            <p style={{ color: "#e02424", fontWeight: 600, marginBottom: 12 }}>{dataError}</p>
+            <button onClick={() => window.location.reload()}
+              style={{ padding: "8px 18px", background: "#0f172a", color: "#fff", border: "none", borderRadius: 8, fontSize: 13, cursor: "pointer" }}>
+              Retry
+            </button>
+          </div>
+        ) : "Loading data…"}
       </div>
     );
   }
