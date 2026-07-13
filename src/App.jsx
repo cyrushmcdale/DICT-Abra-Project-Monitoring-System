@@ -17,7 +17,9 @@ import {
   ChevronDown,
   ChevronRight,
   MapPin,
-  Filter
+  Filter,
+  Menu,
+  X
 } from 'lucide-react';
 
 /* ─────────────────────────────────────────────────────────────
@@ -294,6 +296,16 @@ export default function App() {
   const [programForm, setProgramForm] = useState({ id: null, code: "", name: "", colorIdx: 0 });
   const [expandedEventDetails, setExpandedEventDetails] = useState(null);
 
+  // Responsive layout: collapsible sidebar on narrow (phone) viewports
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth <= 900);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 900px)");
+    const handler = (e) => setIsMobile(e.matches);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
+
   // Calendar Engine Management States
   const [currentCalendarYear, setCurrentCalendarYear] = useState(() => new Date().getFullYear());
   const [currentCalendarMonth, setCurrentCalendarMonth] = useState(() => new Date().getMonth());
@@ -377,6 +389,12 @@ export default function App() {
     await supabase.auth.signOut();
     setStore(null);
     setView("dashboard");
+  };
+
+  // Navigate and, on mobile, close the slide-in nav drawer.
+  const goTo = (v) => {
+    setView(v);
+    setMobileNavOpen(false);
   };
 
   // ── EVENT (per-program) CRUD ──
@@ -653,16 +671,6 @@ export default function App() {
     return Math.round((accomplished / evs.length) * 100);
   };
 
-  // Wait for the initial Supabase session check before deciding which screen to show,
-  // so a logged-in user doesn't flash the login screen on refresh.
-  if (!authChecked) {
-    return (
-      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#0f172a", color: "#94a3b8", fontFamily: "'IBM Plex Sans', sans-serif", fontSize: 13 }}>
-        Loading…
-      </div>
-    );
-  }
-
   // Login Screen UI Render Guard
   if (!isAuthenticated) {
     return (
@@ -683,8 +691,8 @@ export default function App() {
             )}
 
             <div style={{ marginBottom: 16 }}>
-              <label style={{ display: "block", fontSize: 12, color: "#cbd5e1", fontWeight: 600, marginBottom: 6 }}>Email</label>
-              <input type="email" value={username} onChange={e => setUsername(e.target.value)} required placeholder="you@office.gov.ph"
+              <label style={{ display: "block", fontSize: 12, color: "#cbd5e1", fontWeight: 600, marginBottom: 6 }}>Username</label>
+              <input type="text" value={username} onChange={e => setUsername(e.target.value)} required placeholder="Enter username"
                 style={{ width: "100%", padding: "11px 14px", background: "#0f172a", border: "1px solid #475569", borderRadius: 8, color: "#f8fafc", fontSize: 14, outline: "none", boxSizing: "border-box" }} />
             </div>
 
@@ -694,33 +702,17 @@ export default function App() {
                 style={{ width: "100%", padding: "11px 14px", background: "#0f172a", border: "1px solid #475569", borderRadius: 8, color: "#f8fafc", fontSize: 14, outline: "none", boxSizing: "border-box" }} />
             </div>
 
-            <button type="submit" disabled={loginLoading}
-              style={{ width: "100%", padding: "12px", background: "#2563eb", color: "#fff", border: "none", borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: loginLoading ? "not-allowed" : "pointer", opacity: loginLoading ? 0.7 : 1, transition: "background 0.2s" }}>
-              {loginLoading ? "Signing in…" : "Sign In"}
+            <button type="submit"
+              style={{ width: "100%", padding: "12px", background: "#2563eb", color: "#fff", border: "none", borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: "pointer", transition: "background 0.2s" }}>
+              Sign In
             </button>
           </form>
 
           <div style={{ textAlign: "center", marginTop: 24, fontSize: 11, color: "#64748b", borderTop: "1px solid #334155", paddingTop: 16 }}>
-            Use your DICT Abra office account credentials.
+            Default Credentials:<br/>
+            Username: <code style={{ color: "#94a3b8" }}>admin</code> | Password: <code style={{ color: "#94a3b8" }}>dictabra123</code>
           </div>
         </div>
-      </div>
-    );
-  }
-
-  // Data Loading Guard — the Supabase fetch effect runs after isAuthenticated flips true
-  if (!store) {
-    return (
-      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#f8fafc", fontFamily: "'IBM Plex Sans', 'Segoe UI', sans-serif", color: "#64748b", fontSize: 14 }}>
-        {dataError ? (
-          <div style={{ textAlign: "center" }}>
-            <p style={{ color: "#e02424", fontWeight: 600, marginBottom: 12 }}>{dataError}</p>
-            <button onClick={() => window.location.reload()}
-              style={{ padding: "8px 18px", background: "#0f172a", color: "#fff", border: "none", borderRadius: 8, fontSize: 13, cursor: "pointer" }}>
-              Retry
-            </button>
-          </div>
-        ) : "Loading data…"}
       </div>
     );
   }
@@ -845,7 +837,14 @@ export default function App() {
 
       {/* SIDEBAR NAVIGATION PANEL */}
       <div style={{ display: "flex", minHeight: "100vh" }}>
-        <nav style={{ width: 260, background: "#fff", display: "flex", flexDirection: "column", padding: "16px", flexShrink: 0, position: "sticky", top: 0, height: "100vh", borderRight: "1px solid #f1f5f9" }}>
+        {isMobile && mobileNavOpen && (
+          <div onClick={() => setMobileNavOpen(false)}
+            style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,.5)", zIndex: 1050 }} />
+        )}
+        <nav style={{ width: isMobile ? "min(260px, 85vw)" : 260, background: "#fff", display: "flex", flexDirection: "column", padding: "16px", flexShrink: 0,
+          position: isMobile ? "fixed" : "sticky", top: 0, left: 0, height: "100vh", borderRight: "1px solid #f1f5f9",
+          zIndex: 1100, transform: isMobile ? (mobileNavOpen ? "translateX(0)" : "translateX(-100%)") : "none",
+          transition: "transform .25s ease", boxShadow: isMobile && mobileNavOpen ? "4px 0 24px rgba(0,0,0,.2)" : "none" }}>
 
           {/* BRANDING SECTION (Logo left, stacked text right) */}
           <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "0 8px 16px", marginBottom: 24, borderBottom: "1px solid #f1f5f9" }}>
@@ -854,19 +853,25 @@ export default function App() {
               alt="DICT Logo"
               style={{ width: 40, height: 40, objectFit: "contain", flexShrink: 0 }}
             />
-            <div style={{ display: "flex", flexDirection: "column", lineHeight: 1.2 }}>
+            <div style={{ display: "flex", flexDirection: "column", lineHeight: 1.2, flex: 1 }}>
               <span style={{ fontSize: 16, fontWeight: 700, tracking: "0.025em", color: "#1e293b" }}>DICT ABRA</span>
               <span style={{ fontSize: 11, fontWeight: 500, color: "#94a3b8", textTransform: "uppercase" }}>
                 Project Monitoring System
               </span>
             </div>
+            {isMobile && (
+              <button onClick={() => setMobileNavOpen(false)} title="Close menu"
+                style={{ border: "none", background: "none", color: "#94a3b8", cursor: "pointer", padding: 4, display: "flex", flexShrink: 0 }}>
+                <X size={20} />
+              </button>
+            )}
           </div>
 
           <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 2 }}>
             <div style={{ fontSize: 11, color: "#94a3b8", fontWeight: 700, letterSpacing: 1, paddingLeft: 12, marginBottom: 8, textTransform: "uppercase" }}>MENU</div>
 
             {/* 1. Dashboard View Link */}
-            <button onClick={() => setView("dashboard")}
+            <button onClick={() => goTo("dashboard")}
               style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", padding: "10px 12px", borderRadius: 8, border: "none", cursor: "pointer", fontSize: 14, transition: "all 0.15s",
                 background: view === "dashboard" ? "#eff6ff" : "transparent",
                 color: view === "dashboard" ? "#2563eb" : "#64748b", fontWeight: view === "dashboard" ? 600 : 500, marginBottom: 4 }}>
@@ -875,7 +880,7 @@ export default function App() {
             </button>
 
             {/* 2. Programs View Link */}
-            <button onClick={() => setView("programs")}
+            <button onClick={() => goTo("programs")}
               style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", padding: "10px 12px", borderRadius: 8, border: "none", cursor: "pointer", fontSize: 14, transition: "all 0.15s",
                 background: (view === "programs" || view === "programDetail") ? "#eff6ff" : "transparent",
                 color: (view === "programs" || view === "programDetail") ? "#2563eb" : "#64748b", fontWeight: (view === "programs" || view === "programDetail") ? 600 : 500, marginBottom: 4 }}>
@@ -896,14 +901,14 @@ export default function App() {
 
               {showEventsSubmenu && (
                 <div style={{ display: "flex", flexDirection: "column", gap: 2, marginTop: 2, paddingLeft: 14 }}>
-                  <button onClick={() => setView("events")}
+                  <button onClick={() => goTo("events")}
                     style={{ display: "flex", alignItems: "center", width: "100%", padding: "8px 12px", borderRadius: 8, border: "none", cursor: "pointer", fontSize: 13, transition: "all 0.15s",
                       background: view === "events" ? "#eff6ff" : "transparent",
                       color: view === "events" ? "#2563eb" : "#64748b",
                       fontWeight: view === "events" ? 600 : 500 }}>
                     Events
                   </button>
-                  <button onClick={() => setView("addEvent")}
+                  <button onClick={() => goTo("addEvent")}
                     style={{ display: "flex", alignItems: "center", width: "100%", padding: "8px 12px", borderRadius: 8, border: "none", cursor: "pointer", fontSize: 13, transition: "all 0.15s",
                       background: view === "addEvent" ? "#eff6ff" : "transparent",
                       color: view === "addEvent" ? "#2563eb" : "#64748b",
@@ -915,7 +920,7 @@ export default function App() {
             </div>
 
             {/* 4. Employees View Link */}
-            <button onClick={() => setView("employees")}
+            <button onClick={() => goTo("employees")}
               style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", padding: "10px 12px", borderRadius: 8, border: "none", cursor: "pointer", fontSize: 14, transition: "all 0.15s",
                 background: view === "employees" ? "#eff6ff" : "transparent",
                 color: view === "employees" ? "#2563eb" : "#64748b", fontWeight: view === "employees" ? 600 : 500, marginBottom: 4 }}>
@@ -924,7 +929,7 @@ export default function App() {
             </button>
 
             {/* 5. Schedule View Link */}
-            <button onClick={() => setView("schedule")}
+            <button onClick={() => goTo("schedule")}
               style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", padding: "10px 12px", borderRadius: 8, border: "none", cursor: "pointer", fontSize: 14, transition: "all 0.15s",
                 background: view === "schedule" ? "#eff6ff" : "transparent",
                 color: view === "schedule" ? "#2563eb" : "#64748b", fontWeight: view === "schedule" ? 600 : 500, marginBottom: 4 }}>
@@ -933,7 +938,7 @@ export default function App() {
             </button>
 
             {/* 6. Full Report Link */}
-            <button onClick={() => setView("report")}
+            <button onClick={() => goTo("report")}
               style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", padding: "10px 12px", borderRadius: 8, border: "none", cursor: "pointer", fontSize: 14, transition: "all 0.15s",
                 background: view === "report" ? "#eff6ff" : "transparent",
                 color: view === "report" ? "#2563eb" : "#64748b", fontWeight: view === "report" ? 600 : 500, marginBottom: 4 }}>
@@ -959,7 +964,14 @@ export default function App() {
         </nav>
 
         {/* WORKSPACE APP PANELS RENDERER */}
-        <main style={{ flex: 1, padding: "28px 32px", maxWidth: "calc(100vw - 260px)", overflowX: "hidden" }}>
+        <main style={{ flex: 1, padding: isMobile ? "16px" : "28px 32px", maxWidth: isMobile ? "100%" : "calc(100vw - 260px)", overflowX: "hidden" }}>
+
+          {isMobile && (
+            <button onClick={() => setMobileNavOpen(true)} title="Open menu"
+              style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", background: "#fff", border: "1px solid #e2e8f0", borderRadius: 8, fontSize: 13, fontWeight: 600, color: "#334155", cursor: "pointer", marginBottom: 16 }}>
+              <Menu size={18} /> Menu
+            </button>
+          )}
 
           {/* ── SECTION A: DASHBOARD VIEW ── */}
           {view === "dashboard" && (
@@ -973,7 +985,7 @@ export default function App() {
               </div>
 
               {/* Summary cards matrix */}
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 14, marginBottom: 28 }}>
+              <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(5, 1fr)", gap: 14, marginBottom: 28 }}>
                 {[
                   { label: "Upcoming Events", val: `${upcomingEvents.length}`, sub: "All pending (Target) events", accent: "#2563eb" },
                   { label: "Overall Completion Rate", val: overallAll !== null ? `${overallAll}%` : "—", sub: "All programs combined", accent: overallAll !== null ? (overallAll >= 75 ? "#0e9f6e" : "#d97706") : "#64748b" },
@@ -1790,7 +1802,7 @@ export default function App() {
         const set = (field, value) => setEditEventForm(prev => ({ ...prev, [field]: value }));
         return (
           <div onClick={() => setEditEventModalOpen(false)} style={overlayStyle}>
-            <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 16, padding: 28, width: 440, maxHeight: "85vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,.2)" }}>
+            <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 16, padding: 28, width: "min(92vw, 440px)", maxHeight: "85vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,.2)" }}>
               <h2 style={{ fontSize: 17, fontWeight: 700, margin: "0 0 4px", color: editProg?.color || "#0f172a" }}>Edit Event{editProg ? ` — ${editProg.code}` : ""}</h2>
               <p style={{ fontSize: 12, color: "#64748b", margin: "0 0 18px" }}>Update this event's details, location, and status.</p>
 
@@ -1843,7 +1855,7 @@ export default function App() {
         const isAccomplished = ev.status === "Accomplished";
         return (
           <div onClick={() => setExpandedEventDetails(null)} style={overlayStyle}>
-            <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 16, padding: 28, width: 460, maxHeight: "80vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,.2)" }}>
+            <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 16, padding: 28, width: "min(92vw, 460px)", maxHeight: "80vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,.2)" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
                 {evProg && (
                   <span style={{ background: evProg.bg, color: evProg.color, padding: "3px 9px", borderRadius: 6, fontSize: 11, fontWeight: 700 }}>
@@ -1894,7 +1906,7 @@ export default function App() {
       {/* REMOVE EVENT CONFIRM MODAL */}
       {deleteEventConfirm && (
         <div onClick={() => setDeleteEventConfirm(null)} style={overlayStyle}>
-          <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 14, padding: 24, width: 360 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 14, padding: 24, width: "min(92vw, 360px)" }}>
             <div style={{ fontSize: 32, textAlign: "center", marginBottom: 8 }}>⚠️</div>
             <h2 style={{ fontSize: 16, fontWeight: 700, textAlign: "center", margin: "0 0 8px" }}>Remove Event?</h2>
             <p style={{ fontSize: 13, color: "#475569", textAlign: "center", margin: "0 0 20px" }}>"{deleteEventConfirm.name}" and all its data will be permanently deleted.</p>
@@ -1909,7 +1921,7 @@ export default function App() {
       {/* REGIONAL PERFORMANCE NOTES MODAL */}
       {notesOpen && prog && (
         <div onClick={() => setNotesOpen(false)} style={overlayStyle}>
-          <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 16, padding: 28, width: 440 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 16, padding: 28, width: "min(92vw, 440px)" }}>
             <h2 style={{ fontSize: 16, fontWeight: 700, margin: "0 0 4px" }}>📝 Notes / Remarks</h2>
             <p style={{ fontSize: 12, color: "#64748b", margin: "0 0 14px" }}>{prog.code}</p>
             <textarea value={noteText} onChange={e => setNoteText(e.target.value)} rows={5}
@@ -1926,7 +1938,7 @@ export default function App() {
       {/* ADD / EDIT PROGRAM MODAL */}
       {programModalOpen && (
         <div onClick={() => setProgramModalOpen(false)} style={overlayStyle}>
-          <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 16, padding: 28, width: 420, boxShadow: "0 20px 60px rgba(0,0,0,.2)" }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 16, padding: 28, width: "min(92vw, 420px)", boxShadow: "0 20px 60px rgba(0,0,0,.2)" }}>
             <h2 style={{ fontSize: 17, fontWeight: 700, margin: "0 0 4px", color: "#0f172a" }}>
               {programModalMode === "add" ? "➕ Add Program" : "✏️ Edit Program"}
             </h2>
@@ -1964,7 +1976,7 @@ export default function App() {
       {/* ADD / EDIT EMPLOYEE MODAL */}
       {employeeModalOpen && (
         <div onClick={() => setEmployeeModalOpen(false)} style={overlayStyle}>
-          <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 16, padding: 28, width: 400, boxShadow: "0 20px 60px rgba(0,0,0,.2)" }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 16, padding: 28, width: "min(92vw, 400px)", boxShadow: "0 20px 60px rgba(0,0,0,.2)" }}>
             <h2 style={{ fontSize: 17, fontWeight: 700, margin: "0 0 4px", color: "#0f172a" }}>
               {employeeModalMode === "add" ? "➕ Add Employee" : "✏️ Edit Employee"}
             </h2>
@@ -1994,7 +2006,7 @@ export default function App() {
       {/* DELETE EMPLOYEE CONFIRM MODAL */}
       {deleteEmployeeConfirm && (
         <div onClick={() => setDeleteEmployeeConfirm(null)} style={overlayStyle}>
-          <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 14, padding: 24, width: 360 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 14, padding: 24, width: "min(92vw, 360px)" }}>
             <div style={{ fontSize: 32, textAlign: "center", marginBottom: 8 }}>⚠️</div>
             <h2 style={{ fontSize: 16, fontWeight: 700, textAlign: "center", margin: "0 0 8px" }}>Remove Employee?</h2>
             <p style={{ fontSize: 13, color: "#475569", textAlign: "center", margin: "0 0 20px" }}>"{deleteEmployeeConfirm.name}" will be permanently removed from the directory.</p>
