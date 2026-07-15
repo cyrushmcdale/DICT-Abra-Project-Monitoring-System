@@ -688,6 +688,11 @@ export default function App() {
         <div style={{ background: "#1e293b", padding: "40px 32px", borderRadius: 16, width: "100%", maxWidth: 400, boxShadow: "0 25px 50px -12px rgba(0,0,0,0.5)", border: "1px solid #334155" }}>
 
           <div style={{ textAlign: "center", marginBottom: 28 }}>
+            <img
+              src="/dict-logo.png"
+              alt="DICT Logo"
+              style={{ width: 64, height: 64, objectFit: "contain", marginBottom: 12 }}
+            />
             <div style={{ fontSize: 13, fontWeight: 700, color: "#38bdf8", letterSpacing: 2, marginBottom: 4 }}>DICT ABRA PROVINCE</div>
             <h1 style={{ fontSize: 20, fontWeight: 700, color: "#f8fafc", margin: 0, lineHeight: 1.3 }}>Project Monitoring System</h1>
             <p style={{ fontSize: 12, color: "#94a3b8", marginTop: 6 }}>Sign in to encode data and manage metrics</p>
